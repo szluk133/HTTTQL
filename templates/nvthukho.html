@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nhân viên kho</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .navbar {
+            background-color: #ffb300;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            padding: 14px 20px;
+            font-size: 16px;
+        }
+        .navbar a:hover {
+            background-color: #ffcc00;
+            color: white;
+        }
+        .content {
+            padding: 20px;
+        }
+        .phone-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+        .phone-card {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+            width: calc(20% - 20px); /* 5 items per row with spacing */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+            position: relative;
+        }
+        .phone-card img {
+            width: 100%;
+            height: auto;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+        .phone-card h2, .phone-card p, .phone-card .price {
+            margin: 10px 0;
+        }
+        .phone-card input {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            box-sizing: border-box;
+        }
+        .phone-card .actions {
+            display: flex;
+            justify-content: space-between;
+        }
+        .phone-card .edit-button, .phone-card .delete-button, .phone-card .save-button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            margin-top: 10px;
+        }
+        .phone-card .delete-button {
+            background-color: #dc3545;
+        }
+        .phone-card .save-button {
+            background-color: #28a745;
+            display: none; /* Initially hidden */
+        }
+        .phone-card .edit-button:hover {
+            background-color: #0056b3;
+        }
+        .phone-card .delete-button:hover {
+            background-color: #c82333;
+        }
+        .phone-card .save-button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div></div>
+        <div>
+            <a href="{{ url_for('logout') }}">Đăng xuất</a>
+        </div>
+    </div>
+    <div class="container">
+        <h1>Danh sách điện thoại trong kho</h1>
+        <div class="phone-grid">
+            {% for phone in dien_thoai_list %}
+                <div class="phone-card" data-phone-id="{{ phone.maDienThoai }}">
+                    <img src="{{ url_for('static', filename='img/' + phone.img) }}" alt="{{ phone.tenDienThoai }}">
+                    <h2 contenteditable="true">{{ phone.tenDienThoai }}</h2>
+                    <p contenteditable="true">{{ phone.moTa }}</p>
+                    <p class="price" contenteditable="true">Giá: {{ "{:,.0f}".format(phone.giaTien) }} VND</p>
+                    <div class="actions">
+                        <button class="edit-button" onclick="editPhone(this)">Chỉnh sửa</button>
+                        <button class="delete-button" onclick="deletePhone({{ phone.maDienThoai }})">Xóa</button>
+                        <button class="save-button" onclick="savePhone(this, {{ phone.maDienThoai }})">Lưu</button>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    <script>
+        function editPhone(button) {
+            const phoneCard = button.closest('.phone-card');
+            phoneCard.querySelectorAll('h2, p').forEach(field => {
+                field.setAttribute('contenteditable', 'true');
+            });
+            button.style.display = 'none';
+            phoneCard.querySelector('.save-button').style.display = 'inline-block';
+        }
+
+        function savePhone(button, phoneId) {
+            const phoneCard = button.closest('.phone-card');
+            const tenDienThoai = phoneCard.querySelector('h2').innerText;
+            const moTa = phoneCard.querySelector('p').innerText;
+            const giaTien = phoneCard.querySelector('.price').innerText.replace('Giá: ', '').replace(' VND', '').replace(',', '');
+
+            fetch(`/update_phone/${phoneId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    tenDienThoai: tenDienThoai,
+                    moTa: moTa,
+                    giaTien: parseInt(giaTien)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    phoneCard.querySelectorAll('h2, p').forEach(field => {
+                        field.setAttribute('contenteditable', 'false');
+                    });
+                    button.style.display = 'none';
+                    phoneCard.querySelector('.edit-button').style.display = 'inline-block';
+                    alert('Thông tin điện thoại đã được cập nhật');
+                } else {
+                    alert('Có lỗi xảy ra khi cập nhật thông tin điện thoại');
+                }
+            });
+        }
+
+        function deletePhone(phoneId) {
+            if (confirm('Bạn có chắc chắn muốn xóa điện thoại này?')) {
+                fetch(`/delete_phone/${phoneId}`, {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.querySelector(`.phone-card[data-phone-id="${phoneId}"]`).remove();
+                        alert('Điện thoại đã được xóa');
+                    } else {
+                        alert('Có lỗi xảy ra khi xóa điện thoại');
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>
