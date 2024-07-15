@@ -90,7 +90,7 @@
     
     <h1>Quản lý lịch làm việc</h1>
     <div class="form-container">
-        <form method="post">
+        <form id="add-schedule-form" method="post">
             <label for="maNhanVien">Mã nhân viên:</label>
             <select name="maNhanVien">
                 {% for employee in employees %}
@@ -120,7 +120,7 @@
         <tbody>
             {% for day, shifts in weekly_schedule.items() %}
                 <tr>
-                    <td>{{ day }}</td>
+                    <td class="day-cell" data-date="{{ day }}">{{ day }}</td>
                     <td>
                         {% for employee in shifts['sáng'] %}
                             {{ employee }} <span class="delete-button" onclick="deleteShift('{{ day }}', 'sáng', '{{ employee }}')">x</span>
@@ -137,25 +137,45 @@
     </table>
 
     <script>
+        // Function to convert date to day of the week
+        function getDayOfWeek(dateString) {
+            const daysOfWeek = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+            const date = new Date(dateString);
+            return daysOfWeek[date.getDay()];
+        }
+
+        // Update day cells to display the day of the week
+        document.querySelectorAll('.day-cell').forEach(function(cell) {
+            const date = cell.getAttribute('data-date');
+            cell.textContent = getDayOfWeek(date);
+        });
+
+        // Function to delete shift
         function deleteShift(day, shift, employee) {
             if (confirm(`Bạn có chắc chắn muốn xóa ca làm việc của ${employee} vào ngày ${day} ca ${shift}?`)) {
-                const day_date = new Date(day).toISOString().split('T')[0];
                 fetch('/delete_shift', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ day: day_date, shift: shift, employee: employee })
+                    body: JSON.stringify({ day: day, shift: shift, employee: employee })
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
+                        // Clear the form values to prevent auto-submit on reload
+                        document.getElementById('add-schedule-form').reset();
                         window.location.reload();
                     } else {
                         alert('Xóa ca làm việc không thành công.');
                     }
                 });
             }
+        }
+
+        // Prevent form resubmission on page reload
+        if (window.history.replaceState) {
+            window.history.replaceState(null, null, window.location.href);
         }
     </script>
 {% endblock %}

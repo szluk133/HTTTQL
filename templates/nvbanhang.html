@@ -12,6 +12,25 @@
             padding: 0;
         }
 
+        .navbar {
+            background-color: #ffb300;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            padding: 14px 20px;
+            font-size: 16px;
+        }
+        .navbar a:hover {
+            background-color: #ffcc00;
+            color: white;
+        }
+
         .form-container {
             max-width: 600px;
             margin: 50px auto;
@@ -74,6 +93,12 @@
     </style>
 </head>
 <body>
+    <div class="navbar">
+        <div></div>
+        <div>
+            <a href="{{ url_for('logout') }}">Đăng xuất</a>
+        </div>
+    </div>
     <div class="form-container">
         <h2>Tạo hóa đơn</h2>
         <div class="form-group">

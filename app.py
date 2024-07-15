@@ -5,9 +5,12 @@ from wtforms.validators import DataRequired
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import pyodbc
 from datetime import datetime, timedelta
+import json
+from flask_socketio import SocketIO
 
 
 app = Flask(__name__)
+socketio = SocketIO(app)
 app.config['SECRET_KEY'] = 'key'
 
 # app.config['MSSQL_SERVER'] = 'DESKTOP-P61169L\HIHI'
@@ -118,15 +121,32 @@ def submit_invoice():
     maChiNhanh = data.get('maChiNhanh')
 
     try:
+        cursor.execute("SELECT TOP 1 maHangBan FROM HangBan ORDER BY maHangBan DESC")
+        mahbcu = cursor.fetchone()
+
+        if mahbcu:
+            mahbcuall = mahbcu[0]  # Lấy toàn bộ chuỗi mã hàng bán
+            # Tách phần số từ mã hàng bán và tăng lên 1
+            mahbcu_num = int(mahbcuall[2:]) + 1
+            # Tạo mã hàng bán mới với định dạng HB + 8 chữ số
+            maHangBan = f"HB{mahbcu_num:07d}"
         cursor.execute("""
-            INSERT INTO HoaDon (maHoaDon, maKhachHang, maNhanVien, maDienThoai, soLuong, tongTien, ngayThanhToan, maChiNhanh)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, maHoaDon, maKhachHang, maNhanVien, maDienThoai, soLuong, tongTien, ngayThanhToan, maChiNhanh)
+            INSERT INTO HoaDonBanHang (maHoaDon, maKhachHang, maNhanVien, ngayThanhToan, tongTien, maChiNhanh)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, maHoaDon, maKhachHang, maNhanVien, ngayThanhToan, tongTien, maChiNhanh)
+        conn.commit()
+        cursor.execute("""
+            INSERT INTO HangBan (maHangBan, maHoaDon, maDienThoai, soLuong, tongTien)
+            VALUES (?, ?, ?, ?, ?)
+        """, maHangBan, maHoaDon, maDienThoai, soLuong, tongTien)
         conn.commit()
         return jsonify(success=True)
     except pyodbc.Error as e:
         print("Error:", e)
         return jsonify(success=False, error=str(e))
+    finally:
+        cursor.close()
+        conn.close()
     
 @app.route('/get_next_ma_hoa_don')
 def get_next_ma_hoa_don():
@@ -172,16 +192,41 @@ def lichlamviec():
     employees = cursor.fetchall()
 
     # Get the current week's schedule
-    start_of_week = datetime.now() - timedelta(days=datetime.now().weekday())
+    # start_of_week = datetime.now() - timedelta(days=datetime.now().weekday())
+    # weekly_schedule = {}
+    # for i in range(7):
+    #     current_day = start_of_week + timedelta(days=i)
+    #     formatted_date = current_day.strftime('%Y-%m-%d')
+    #     weekly_schedule[current_day.strftime('%A')] = {'sáng': [], 'chiều': []}
+    #     cursor.execute("SELECT nv.hoTen, llv.ca FROM LichLamViec llv JOIN NhanVien nv ON llv.maNhanVien = nv.maNhanVien WHERE llv.ngay = ?", (formatted_date,))
+    #     shifts = cursor.fetchall()
+    #     for shift in shifts:
+    #         weekly_schedule[current_day.strftime('%A')][shift[1]].append(shift[0])
+    today = datetime.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+    
+    cursor.execute("""
+        SELECT llv.ngay, llv.ca, nv.hoTen 
+        FROM LichLamViec llv
+        JOIN NhanVien nv ON llv.maNhanVien = nv.maNhanVien
+        WHERE llv.ngay BETWEEN ? AND ?
+        ORDER BY llv.ngay, llv.ca
+    """, (start_of_week, end_of_week))
+    
+    schedule = cursor.fetchall()
+    
+    # Tạo cấu trúc lịch làm việc cho tuần hiện tại
     weekly_schedule = {}
     for i in range(7):
-        current_day = start_of_week + timedelta(days=i)
-        formatted_date = current_day.strftime('%Y-%m-%d')
-        weekly_schedule[current_day.strftime('%A')] = {'sáng': [], 'chiều': []}
-        cursor.execute("SELECT nv.hoTen, llv.ca FROM LichLamViec llv JOIN NhanVien nv ON llv.maNhanVien = nv.maNhanVien WHERE llv.ngay = ?", (formatted_date,))
-        shifts = cursor.fetchall()
-        for shift in shifts:
-            weekly_schedule[current_day.strftime('%A')][shift[1]].append(shift[0])
+        day = start_of_week + timedelta(days=i)
+        weekly_schedule[day.strftime('%Y-%m-%d')] = {'sáng': [], 'chiều': []}
+    
+    for entry in schedule:
+        day = entry.ngay.strftime('%Y-%m-%d')
+        shift = entry.ca
+        employee_name = entry.hoTen
+        weekly_schedule[day][shift].append(employee_name)
 
     conn.close()
     return render_template('QuanLy/QLLLV.html', employees=employees, weekly_schedule=weekly_schedule)
@@ -285,7 +330,7 @@ def delete_shift():
     cursor = conn.cursor()
     
     cursor.execute("""
-        DELETE FROM lich_lam_viec 
+        DELETE FROM LichLamViec 
         WHERE maNhanVien = (
             SELECT maNhanVien FROM NhanVien WHERE hoTen = ?
         ) AND ngay = ? AND ca = ?
@@ -497,16 +542,20 @@ def update_customer():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        print("Received data for update:", data)
         cursor.execute("""
             UPDATE KhachHang
             SET hoTen = ?, diaChi = ?, sdt = ?
             WHERE maKhachHang = ?
         """, hoTen, diaChi, sdt, maKhachHang)
         conn.commit()
+        print("Customer updated successfully.")
         return jsonify(success=True)
     except pyodbc.Error as e:
         print("Error:", e)
         return jsonify(success=False, error=str(e))
+    finally:
+        conn.close()
 
 @app.route('/delete_customer', methods=['POST'])
 def delete_customer():
@@ -551,12 +600,103 @@ def delete_phone(phone_id):
     
     return jsonify({'success': True})
 
-@app.route('/finance_management')
-def finance_management():
+@app.route('/finance_management_detail')
+def finance_management_detail():
     # Xử lý logic cho trang quản lý tài chính ở đây
     return render_template('QuanLy/QLTaiChinh.html')
 
 
+@app.route('/finace_management')
+def finance_management():
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
+    # Lấy dữ liệu của tháng 4 năm 2024 từ bảng HangBan và HoaDonBanHang
+    query = """
+    SELECT h.maDienThoai, d.tenDienThoai, SUM(h.soLuong) AS total_quantity, SUM(h.tongTien) AS total_revenue
+    FROM HangBan h
+    JOIN HoaDonBanHang hd ON h.maHoaDon = hd.maHoaDon
+    JOIN DienThoai d ON h.maDienThoai = d.maDienThoai
+    WHERE MONTH(hd.ngayThanhToan) = 4 AND YEAR(hd.ngayThanhToan) = 2024
+    GROUP BY h.maDienThoai, d.tenDienThoai
+    ORDER BY total_quantity DESC
+    """
+
+    cursor.execute(query)
+    results = cursor.fetchall()
+    conn.close()
+
+    top_products = results[:3]
+    total_revenue = sum(row.total_revenue for row in results)
+
+    # Dữ liệu cho biểu đồ cột
+    top_products_chart_data = {
+        'labels': [row.tenDienThoai for row in top_products],
+        'quantities': [row.total_quantity for row in top_products]
+    }
+
+    # Dữ liệu cho biểu đồ tròn
+    total_revenue_chart_data = {
+        'labels': [row.tenDienThoai for row in results],
+        'revenues': [row.total_revenue for row in results]
+    }
+
+    return render_template('QuanLy/QLTK.html', top_products_chart_data=json.dumps(top_products_chart_data), total_revenue_chart_data=json.dumps(total_revenue_chart_data))
+
+@socketio.on('connect')
+def handle_connect():
+    data = fetch_chart_data()
+    socketio.emit('update_chart_data', data)
+
+def fetch_chart_data():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Truy vấn để lấy 3 sản phẩm bán chạy nhất theo tên điện thoại
+    top_products_query = '''
+    SELECT TOP 3 DienThoai.tenDienThoai, SUM(HangBan.soLuong) as total_quantity
+    FROM HangBan
+    JOIN DienThoai ON HangBan.maDienThoai = DienThoai.maDienThoai
+    WHERE HangBan.maHoaDon IN (
+        SELECT maHoaDon
+        FROM HoaDonBanHang
+        WHERE MONTH(ngayThanhToan) = 4 AND YEAR(ngayThanhToan) = 2024
+    )
+    GROUP BY DienThoai.tenDienThoai
+    ORDER BY total_quantity DESC
+    '''
+    
+    # Truy vấn để lấy tổng doanh thu theo tên điện thoại
+    total_revenue_query = '''
+    SELECT DienThoai.tenDienThoai, SUM(HangBan.tongTien) as total_revenue
+    FROM HangBan
+    JOIN DienThoai ON HangBan.maDienThoai = DienThoai.maDienThoai
+    WHERE HangBan.maHoaDon IN (
+        SELECT maHoaDon
+        FROM HoaDonBanHang
+        WHERE MONTH(ngayThanhToan) = 4 AND YEAR(ngayThanhToan) = 2024
+    )
+    GROUP BY DienThoai.tenDienThoai
+    '''
+    
+    cursor.execute(top_products_query)
+    top_products_data = cursor.fetchall()
+    top_products_chart_data = {
+        'labels': [row[0] for row in top_products_data],
+        'quantities': [row[1] for row in top_products_data]
+    }
+
+    cursor.execute(total_revenue_query)
+    total_revenue_data = cursor.fetchall()
+    total_revenue_chart_data = {
+        'labels': [row[0] for row in total_revenue_data],
+        'revenues': [row[1] for row in total_revenue_data]
+    }
+
+    return {
+        'top_products_chart_data': top_products_chart_data,
+        'total_revenue_chart_data': total_revenue_chart_data
+    }
+    
 if __name__ == '__main__':
-    app.run(debug=True)
+    socketio.run(app, debug=True)

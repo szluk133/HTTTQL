@@ -1,0 +1,173 @@
+{% extends 'quanly.html' %}
+
+{% block content %}
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+        }
+
+        .chart-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .chart {
+            background-color: #fff;
+            border: 1px solid #bbb;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            margin: 20px;
+            padding: 20px;
+            width: 45%;
+        }
+
+        canvas {
+            max-width: 100%;
+        }
+
+        button {
+            display: block;
+            width: 200px;
+            margin: 20px auto;
+            padding: 10px;
+            background-color: #0056b3;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            text-align: center;
+            text-decoration: none;
+        }
+
+        button a {
+            color: white;
+            text-decoration: none;
+        }
+
+        button:hover {
+            background-color: #003580;
+        }
+    </style>
+
+    <h1>Thống kê doanh thu tháng 4 - 2024</h1>
+    <div class="chart-container">
+        <div class="chart">
+            <canvas id="topProductsChart"></canvas>
+        </div>
+        <div class="chart">
+            <canvas id="totalRevenueChart"></canvas>
+        </div>
+    </div>
+    <button>
+        <a href="{{ url_for('finance_management_detail') }}">Xem chi tiết</a>
+    </button>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+
+        let topProductsChart;
+        let totalRevenueChart;
+
+        socket.on('update_chart_data', (data) => {
+            const topProductsChartData = data.top_products_chart_data;
+            const totalRevenueChartData = data.total_revenue_chart_data;
+
+            if (!topProductsChart || !totalRevenueChart) {
+                createCharts(topProductsChartData, totalRevenueChartData);
+            } else {
+                updateCharts(topProductsChartData, totalRevenueChartData);
+            }
+        });
+
+        function createCharts(topProductsChartData, totalRevenueChartData) {
+            const topProductsChartConfig = {
+                type: 'bar',
+                data: {
+                    labels: topProductsChartData.labels,
+                    datasets: [{
+                        label: 'Số lượng bán ra',
+                        data: topProductsChartData.quantities,
+                        backgroundColor: 'rgba(54, 162, 235, 0.4)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            };
+
+            const totalRevenueChartConfig = {
+                type: 'doughnut',
+                data: {
+                    labels: totalRevenueChartData.labels,
+                    datasets: [{
+                        data: totalRevenueChartData.revenues,
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.4)',
+                            'rgba(54, 162, 235, 0.4)',
+                            'rgba(255, 206, 86, 0.4)',
+                            'rgba(75, 192, 192, 0.4)',
+                            'rgba(153, 102, 255, 0.4)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.raw !== null) {
+                                        label += context.raw.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            topProductsChart = new Chart(document.getElementById('topProductsChart'), topProductsChartConfig);
+            totalRevenueChart = new Chart(document.getElementById('totalRevenueChart'), totalRevenueChartConfig);
+        }
+
+        function updateCharts(topProductsChartData, totalRevenueChartData) {
+            topProductsChart.data.labels = topProductsChartData.labels;
+            topProductsChart.data.datasets[0].data = topProductsChartData.quantities;
+            topProductsChart.update();
+
+            totalRevenueChart.data.labels = totalRevenueChartData.labels;
+            totalRevenueChart.data.datasets[0].data = totalRevenueChartData.revenues;
+            totalRevenueChart.update();
+        }
+    </script>
+{% endblock %}

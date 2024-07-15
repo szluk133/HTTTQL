@@ -246,15 +246,11 @@
                     });
                 }).then(data => {
                     if (data.success) {
-
                         row.querySelectorAll('.view-mode').forEach(el => el.style.display = 'inline-block');
                         row.querySelectorAll('.edit-mode').forEach(el => el.style.display = 'none');
                         row.querySelector('.edit-button').style.display = 'inline-block';
                         row.querySelector('.save-button').style.display = 'none';
-
-                        row.querySelector('.view-mode:nth-child(1)').textContent = hoTen;
-                        row.querySelector('.view-mode:nth-child(2)').textContent = diaChi;
-                        row.querySelector('.view-mode:nth-child(3)').textContent = sdt;
+                        window.location.reload();
                     } else {
                         alert('Có lỗi xảy ra khi cập nhật khách hàng: ' + data.error);
                     }
