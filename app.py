@@ -7,7 +7,7 @@ import pyodbc
 from datetime import datetime, timedelta
 import json
 from flask_socketio import SocketIO
-
+from decimal import Decimal
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -18,10 +18,10 @@ app.config['SECRET_KEY'] = 'key'
 # app.config['MSSQL_USER'] = 'sa'
 # app.config['MSSQL_PASSWORD'] = 'sa'
 
-app.config['MSSQL_SERVER'] = 'localhost'
-app.config['MSSQL_DATABASE'] = 'HTTTQL'
+app.config['MSSQL_SERVER'] = 'DESKTOP-UAFD9T6'
+app.config['MSSQL_DATABASE'] = 'BTL_HTTTQL'
 app.config['MSSQL_USER'] = 'sa'
-app.config['MSSQL_PASSWORD'] = 'nhom2'
+app.config['MSSQL_PASSWORD'] = '123'
 
 # Setup MSSQL connection
 def get_db_connection():
@@ -188,7 +188,7 @@ def lichlamviec():
         )
         conn.commit()
 
-    cursor.execute("SELECT maNhanVien, hoTen FROM NhanVien WHERE maChiNhanh = 'CN001'")
+    cursor.execute("SELECT maNhanVien, tenNhanVien FROM NhanVien")
     employees = cursor.fetchall()
 
     # Get the current week's schedule
@@ -198,7 +198,7 @@ def lichlamviec():
     #     current_day = start_of_week + timedelta(days=i)
     #     formatted_date = current_day.strftime('%Y-%m-%d')
     #     weekly_schedule[current_day.strftime('%A')] = {'sáng': [], 'chiều': []}
-    #     cursor.execute("SELECT nv.hoTen, llv.ca FROM LichLamViec llv JOIN NhanVien nv ON llv.maNhanVien = nv.maNhanVien WHERE llv.ngay = ?", (formatted_date,))
+    #     cursor.execute("SELECT nv.tenNhanVien, llv.ca FROM LichLamViec llv JOIN NhanVien nv ON llv.maNhanVien = nv.maNhanVien WHERE llv.ngay = ?", (formatted_date,))
     #     shifts = cursor.fetchall()
     #     for shift in shifts:
     #         weekly_schedule[current_day.strftime('%A')][shift[1]].append(shift[0])
@@ -207,7 +207,7 @@ def lichlamviec():
     end_of_week = start_of_week + timedelta(days=6)
     
     cursor.execute("""
-        SELECT llv.ngay, llv.ca, nv.hoTen 
+        SELECT llv.ngay, llv.ca, nv.tenNhanVien 
         FROM LichLamViec llv
         JOIN NhanVien nv ON llv.maNhanVien = nv.maNhanVien
         WHERE llv.ngay BETWEEN ? AND ?
@@ -225,7 +225,7 @@ def lichlamviec():
     for entry in schedule:
         day = entry.ngay.strftime('%Y-%m-%d')
         shift = entry.ca
-        employee_name = entry.hoTen
+        employee_name = entry.tenNhanVien
         weekly_schedule[day][shift].append(employee_name)
 
     conn.close()
@@ -237,18 +237,17 @@ def tkdoanhthunv():
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT nv.maNhanVien, nv.hoTen, SUM(hdbh.tongTien) AS doanhThu
+        SELECT nv.maNhanVien, nv.tenNhanVien, SUM(hdbh.tongTien) AS doanhThu
         FROM HoaDonBanHang hdbh
         JOIN NhanVien nv ON hdbh.maNhanVien = nv.maNhanVien
-        WHERE nv.maChiNhanh = 'CN001'
-        GROUP BY nv.maNhanVien, nv.hoTen
+        GROUP BY nv.maNhanVien, nv.tenNhanVien
         ORDER BY doanhThu DESC
     """)
     rows = cursor.fetchall()
     
     # Loại bỏ khoảng trắng thừa trong maNhanVien
     doanhthu_data = [
-        {'maNhanVien': row.maNhanVien.strip(), 'hoTen': row.hoTen.strip(), 'doanhThu': row.doanhThu}
+        {'maNhanVien': row.maNhanVien.strip(), 'tenNhanVien': row.tenNhanVien.strip(), 'doanhThu': row.doanhThu}
         for row in rows
     ]
     
@@ -269,7 +268,7 @@ def doanhthu_chitiet(maNhanVien):
     """, (maNhanVien.strip(),))
     hoadon_data = cursor.fetchall()
 
-    cursor.execute("SELECT hoTen FROM NhanVien WHERE maNhanVien = ?", (maNhanVien.strip(),))
+    cursor.execute("SELECT tenNhanVien FROM NhanVien WHERE maNhanVien = ?", (maNhanVien.strip(),))
     nhanvien = cursor.fetchone()
     
     conn.close()
@@ -284,10 +283,11 @@ def quanlyluong():
     
     # Truy vấn để lấy danh sách nhân viên và mức lương của họ
     cursor.execute("""
-        SELECT ROW_NUMBER() OVER (ORDER BY maNhanVien) AS stt, maNhanVien, hoTen, luong
+        SELECT ROW_NUMBER() OVER (ORDER BY maNhanVien) AS stt, maNhanVien, tenNhanVien, luong
         FROM NhanVien
-        WHERE maChiNhanh = 'CN001'
+
     """)
+        #  WHERE maChiNhanh = 'CN001'
     luong_data = cursor.fetchall()
     
     conn.close()
@@ -306,12 +306,12 @@ def delete_luong(maNhanVien):
 def update_luong():
     data = request.get_json()
     maNhanVien = data['maNhanVien']
-    hoTen = data['hoTen']
+    tenNhanVien = data['tenNhanVien']
     luong = data['luong']
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE NhanVien SET hoTen = ?, luong = ? WHERE maNhanVien = ?", (hoTen, luong, maNhanVien))
+    cursor.execute("UPDATE NhanVien SET tenNhanVien = ?, luong = ? WHERE maNhanVien = ?", (tenNhanVien, luong, maNhanVien))
     conn.commit()
     conn.close()
     return jsonify(success=True)
@@ -332,7 +332,7 @@ def delete_shift():
     cursor.execute("""
         DELETE FROM LichLamViec 
         WHERE maNhanVien = (
-            SELECT maNhanVien FROM NhanVien WHERE hoTen = ?
+            SELECT maNhanVien FROM NhanVien WHERE tenNhanVien = ?
         ) AND ngay = ? AND ca = ?
     """, (employee, day_date, shift))
     
@@ -455,7 +455,7 @@ def add_customer():
         new_customer_id = f'KH{next_id:04d}'
         
         # Thêm khách hàng vào cơ sở dữ liệu
-        cursor.execute("INSERT INTO KhachHang (maKhachHang, hoTen, diaChi, sdt) VALUES (?, ?, ?, ?)", (new_customer_id, name, address, phone))
+        cursor.execute("INSERT INTO KhachHang (maKhachHang, tenNhanVien, diaChi, sdt) VALUES (?, ?, ?, ?)", (new_customer_id, name, address, phone))
         conn.commit()
         conn.close()
 
@@ -507,7 +507,7 @@ def customer_management():
     if search:
         search_query = f"""
         SELECT * FROM KhachHang
-        WHERE maKhachHang LIKE ? OR hoTen LIKE ? OR sdt LIKE ?
+        WHERE maKhachHang LIKE ? OR tenKhachHang LIKE ? OR sdt LIKE ?
         """
         search_param = f"%{search}%"
         cursor.execute(search_query, (search_param, search_param, search_param))
@@ -535,7 +535,7 @@ def customer_management():
 def update_customer():
     data = request.json
     maKhachHang = data['maKhachHang']
-    hoTen = data['hoTen']
+    tenKhachHang = data['tenKhachHang']
     diaChi = data['diaChi']
     sdt = data['sdt']
     
@@ -545,9 +545,9 @@ def update_customer():
         print("Received data for update:", data)
         cursor.execute("""
             UPDATE KhachHang
-            SET hoTen = ?, diaChi = ?, sdt = ?
+            SET tenKhachHang = ?, diaChi = ?, sdt = ?
             WHERE maKhachHang = ?
-        """, hoTen, diaChi, sdt, maKhachHang)
+        """, tenKhachHang, diaChi, sdt, maKhachHang)
         conn.commit()
         print("Customer updated successfully.")
         return jsonify(success=True)
@@ -571,7 +571,7 @@ def delete_customer():
     
     return jsonify(success=True)
 
-@app.route('/update_phone/<int:phone_id>', methods=['POST'])
+@app.route('/update_phone/<string:phone_id>', methods=['POST'])
 def update_phone(phone_id):
     data = request.get_json()
     tenDienThoai = data.get('tenDienThoai')
@@ -590,7 +590,7 @@ def update_phone(phone_id):
     
     return jsonify({'success': True})
 
-@app.route('/delete_phone/<int:phone_id>', methods=['POST'])
+@app.route('/delete_phone/<string:phone_id>', methods=['POST'])
 def delete_phone(phone_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -617,7 +617,7 @@ def finance_management():
     FROM HangBan h
     JOIN HoaDonBanHang hd ON h.maHoaDon = hd.maHoaDon
     JOIN DienThoai d ON h.maDienThoai = d.maDienThoai
-    WHERE MONTH(hd.ngayThanhToan) = 4 AND YEAR(hd.ngayThanhToan) = 2024
+    WHERE MONTH(hd.ngayThanhToan) = 3 AND YEAR(hd.ngayThanhToan) = 2024
     GROUP BY h.maDienThoai, d.tenDienThoai
     ORDER BY total_quantity DESC
     """
@@ -627,7 +627,7 @@ def finance_management():
     conn.close()
 
     top_products = results[:3]
-    total_revenue = sum(row.total_revenue for row in results)
+    total_revenue = sum(float(row.total_revenue) for row in results)
 
     # Dữ liệu cho biểu đồ cột
     top_products_chart_data = {
@@ -638,7 +638,7 @@ def finance_management():
     # Dữ liệu cho biểu đồ tròn
     total_revenue_chart_data = {
         'labels': [row.tenDienThoai for row in results],
-        'revenues': [row.total_revenue for row in results]
+        'revenues': [float(row.total_revenue) for row in results]
     }
 
     return render_template('QuanLy/QLTK.html', top_products_chart_data=json.dumps(top_products_chart_data), total_revenue_chart_data=json.dumps(total_revenue_chart_data))
@@ -652,7 +652,7 @@ def fetch_chart_data():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Truy vấn để lấy 3 sản phẩm bán chạy nhất theo tên điện thoại
+    # Truy vấn 3 sản phẩm bán chạy nhất
     top_products_query = '''
     SELECT TOP 3 DienThoai.tenDienThoai, SUM(HangBan.soLuong) as total_quantity
     FROM HangBan
@@ -660,13 +660,13 @@ def fetch_chart_data():
     WHERE HangBan.maHoaDon IN (
         SELECT maHoaDon
         FROM HoaDonBanHang
-        WHERE MONTH(ngayThanhToan) = 4 AND YEAR(ngayThanhToan) = 2024
+        WHERE MONTH(ngayThanhToan) = 3 AND YEAR(ngayThanhToan) = 2024
     )
     GROUP BY DienThoai.tenDienThoai
     ORDER BY total_quantity DESC
     '''
     
-    # Truy vấn để lấy tổng doanh thu theo tên điện thoại
+    # Truy vấn tổng doanh thu theo tên điện thoại
     total_revenue_query = '''
     SELECT DienThoai.tenDienThoai, SUM(HangBan.tongTien) as total_revenue
     FROM HangBan
@@ -674,7 +674,7 @@ def fetch_chart_data():
     WHERE HangBan.maHoaDon IN (
         SELECT maHoaDon
         FROM HoaDonBanHang
-        WHERE MONTH(ngayThanhToan) = 4 AND YEAR(ngayThanhToan) = 2024
+        WHERE MONTH(ngayThanhToan) = 3 AND YEAR(ngayThanhToan) = 2024
     )
     GROUP BY DienThoai.tenDienThoai
     '''
@@ -683,16 +683,18 @@ def fetch_chart_data():
     top_products_data = cursor.fetchall()
     top_products_chart_data = {
         'labels': [row[0] for row in top_products_data],
-        'quantities': [row[1] for row in top_products_data]
+        'quantities': [float(row[1]) for row in top_products_data]  # ✅ Chuyển Decimal -> float
     }
 
     cursor.execute(total_revenue_query)
     total_revenue_data = cursor.fetchall()
     total_revenue_chart_data = {
         'labels': [row[0] for row in total_revenue_data],
-        'revenues': [row[1] for row in total_revenue_data]
+        'revenues': [float(row[1]) for row in total_revenue_data]  # ✅ Chuyển Decimal -> float
     }
 
+    conn.close()
+    
     return {
         'top_products_chart_data': top_products_chart_data,
         'total_revenue_chart_data': total_revenue_chart_data

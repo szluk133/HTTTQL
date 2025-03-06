@@ -48,7 +48,7 @@
             <tbody>
                 {% for row in doanhthu_data %}
                     <tr>
-                        <td><a href="{{ url_for('doanhthu_chitiet', maNhanVien=row.maNhanVien) }}">{{ row.hoTen }}</a></td>
+                        <td><a href="{{ url_for('doanhthu_chitiet', maNhanVien=row.maNhanVien) }}">{{ row.tenNhanVien }}</a></td>
                         <td>{{ "{:,.0f}".format(row.doanhThu) }}</td>
                     </tr>
                 {% endfor %}
@@ -67,7 +67,7 @@
             const data = {
                 labels: [
                     {% for row in doanhthu_data %}
-                        "{{ row.hoTen }}",
+                        "{{ row.tenNhanVien }}",
                     {% endfor %}
                 ],
                 datasets: [{

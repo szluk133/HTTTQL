@@ -150,8 +150,8 @@
                         <td>{{ loop.index }}</td>
                         <td>{{ customer.maKhachHang }}</td>
                         <td>
-                            <span class="view-mode">{{ customer.hoTen }}</span>
-                            <input class="edit-mode" type="text" name="hoTen" value="{{ customer.hoTen }}" style="display: none;">
+                            <span class="view-mode">{{ customer.tenKhachHang }}</span>
+                            <input class="edit-mode" type="text" name="tenKhachHang" value="{{ customer.tenKhachHang }}" style="display: none;">
                         </td>
                         <td>
                             <span class="view-mode">{{ customer.diaChi }}</span>
@@ -221,7 +221,7 @@
             button.addEventListener('click', function() {
                 const row = this.closest('tr');
                 const maKhachHang = row.getAttribute('data-ma-khach-hang');
-                const hoTen = row.querySelector('input[name="hoTen"]').value.trim();
+                const tenKhachHang = row.querySelector('input[name="tenKhachHang"]').value.trim();
                 const diaChi = row.querySelector('input[name="diaChi"]').value.trim();
                 const sdt = row.querySelector('input[name="sdt"]').value.trim();
 
@@ -232,7 +232,7 @@
                     },
                     body: JSON.stringify({
                         maKhachHang: maKhachHang,
-                        hoTen: hoTen,
+                        tenKhachHang: tenKhachHang,
                         diaChi: diaChi,
                         sdt: sdt,
                     })

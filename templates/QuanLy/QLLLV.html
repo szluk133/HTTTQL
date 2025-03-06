@@ -94,7 +94,7 @@
             <label for="maNhanVien">Mã nhân viên:</label>
             <select name="maNhanVien">
                 {% for employee in employees %}
-                    <option value="{{ employee.maNhanVien }}">{{ employee.hoTen }}</option>
+                    <option value="{{ employee.maNhanVien }}">{{ employee.tenNhanVien }}</option>
                 {% endfor %}
             </select>
             <label for="ngay">Ngày:</label>
